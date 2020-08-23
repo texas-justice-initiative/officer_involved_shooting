@@ -1,0 +1,10 @@
+name: tji-ois-report
+
+dependencies:
+  - python=3.6
+  - pandas
+  - numpy
+  - matplotlib
+  - seaborn
+  - jupyter
+  - ipython
