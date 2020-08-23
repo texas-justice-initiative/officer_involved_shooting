@@ -1,4 +1,4 @@
-# [Officer-Involved Shootings in Texas: 2016-2019]
+# [Officer-Involved Shootings in Texas: 2016-2019](https://texasjusticeinitiative.org/static/TJI-2019AR-V9.pdf)
 
 Texas law requires the Office of the Attorney General (OAG) to collect reports on all officer-involved shootings throughout Texas and then provide the summary of the individual reports in “The Peace Officer Involved Shooting Annual Reports.” The OAG digitally publishes these annual reports, which are extremely high-level summaries, with no findings or analysis of trends or intersectionality.
 
