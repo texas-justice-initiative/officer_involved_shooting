@@ -1,20 +1,16 @@
-# Officer-Involved Shootings in Texas: 2016-2019
+# [Officer-Involved Shootings in Texas: 2016-2019]
 
 Texas law requires the Office of the Attorney General (OAG) to collect reports on all officer-involved shootings throughout Texas and then provide the summary of the individual reports in “The Peace Officer Involved Shooting Annual Reports.” The OAG digitally publishes these annual reports, which are extremely high-level summaries, with no findings or analysis of trends or intersectionality.
 
-Texas Justice Initiative (TJI) reviewed the officer-involved shooting incidents data from law enforcement agencies in Texas between 2016 and 2019. This TJI publication improves upon the OAG’s annual reports by providing in-depth analyses with more granular information. This report consists of two parts:
+Texas Justice Initiative (TJI) reviewed the officer-involved shooting incidents data from law enforcement agencies in Texas between 2016 and 2019. This TJI publication improves upon the OAG’s annual reports by providing in-depth analyses with more granular information. Our report can be found on our website (see [here](https://texasjusticeinitiative.org/static/TJI-2019AR-V9.pdf)). This report consists of two parts:
 - The **Data Summary** section provides an overview of the incidents as intersectional information such as the total number of civilian severities per county and per race demographics.
 - The **Data Insight** section provides TJI’s independent analysis of the officer-involved shootings, including notable patterns in the data.
 
 This repository has the following information about the report:
-- A pdf copy of TJI's **Officer-Involved Shootings in Texas: 2016-2019** report
 - Jupyter notebooks for data preprocessing for the OIS datasets and the census datasets
 - Jupyter notebooks for all the analyses in the report (Data Summary and Data Insight sections)
 - Raw and preprocessed datasets
 - Python script used for data preprocessing and visualization
-
-## Report
-- `TJI-2019AR-V9.pdf`: the final version of TJI's **Officer-Involved Shootings in Texas: 2016-2019** report
 
 ## Data
 ### Raw
