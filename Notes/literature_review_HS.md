@@ -71,7 +71,7 @@ Cody T. Ross, UC Davis, PLOS One (2015)
 		- Population size, racial/ethnic composition, inequality (Gini), median income, race-specific crime rates, norms about racism (using a proxy of racially-based expletives in Google searches)
 - Discussion
 	- **Encounter rate** data is not available and thus the data cannot explain the relative risk of being shot by the police on being encountered by police.
-	- Data collection with **more empiritical evidence**:
+	- Data collection with **more empirical evidence**:
 		- Shot in the back?
 		- Restrained when shot?
 		- Circumstances surrounding the shooting
