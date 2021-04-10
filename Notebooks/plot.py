@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 plt.style.use('ggplot')
-colors_year = plt.get_cmap('magma')(np.linspace(0.5, 1, 5)[::-1][1:])   # default year color
+cols_race = ['#CE2827', '#3167AE', '#4C5151', '#B8BAB9']
 
 # commonly used variables
 race_list = ['WHITE', 'BLACK', 'HISPANIC', 'OTHER']
@@ -34,7 +34,7 @@ def plot_stackedbar_year_county(df, title, total_count=False, n_county=10,
     """
     years = np.sort(df['year'].unique())
     if colors is None:
-        colors = colors_year
+        raise ValueError("Please assing color names.")
 
     fig, ax = plt.subplots(1, 1, figsize=figsize)
 
@@ -85,7 +85,7 @@ def plot_pie(df, col, figsize=(4, 4), fontsize=10, colors=None,
     """
 
     if colors is None:
-        colors = colors_year
+        raise ValueError("Please assing color names.")
     wedge_size = 0.5    # if it's 0 it becomes a pie plot (not a donut)
 
     # compute the counts
@@ -187,7 +187,7 @@ def plot_heatmap_county_race_year(df, df_type='civilian', n_county=10, total_cou
         axes[0].set_yticklabels([s + ' ({})'.format(int(n))
                                  for s, n in zip(temp.index, temp.sum(axis=1))])
 
-    fig.suptitle(title, x=0.5, y=1.05)
+    fig.suptitle(title, x=0.5, y=1.01)
     fig.tight_layout()
     if fname is not None:
         fig.savefig(fname, bbox_inches='tight')                
@@ -440,3 +440,180 @@ def annotate(ax, direction='v', unit='num', color='white', fontsize=10, threshol
         if target > threshold:
             ax.text(x+width/2, y+height/2, s.format(target), color=color, fontsize=fontsize,
                     horizontalalignment='center', verticalalignment='center')
+        
+def plot_line_race_year(
+    df,
+    df_type='civilian', 
+    total_count_cols=True, 
+    total_count_xticks=True,
+    figsize=(5, 4),
+    title=None,
+    fontsize=10,
+    bbox_to_anchor=(1.1, 1),
+    fname=None
+    ):
+
+    years = np.sort(df['year'].unique())
+    assert df_type == 'civilian' or 'officer'
+
+    temp = df.groupby(['year', df_type + '_race'])['date_incident'].count().unstack()
+    
+    missing_races = set(race_list) - set(temp.columns)
+    if len(missing_races) > 0:
+        for missing_race in missing_races:
+            temp[missing_race] = np.nan
+    temp = temp[race_list]
+    
+    fig, ax = plt.subplots(figsize=figsize)
+    temp.plot(marker='o', color=cols_race, ax=ax)
+    ax.set(ylabel='', xlabel='', xticks=years)
+    
+    if total_count_xticks:
+        ax.set_xticklabels([str(s) + '\n({})'.format(int(n))
+                            for s, n in zip(years, temp.sum(axis=1))], rotation=0)
+    else:
+        ax.set_xticklabels(years, rotation=0)
+            
+    ax.legend(race_list, fontsize=fontsize)
+    ax.set_title(title, fontsize=fontsize)
+    fig.tight_layout()
+    if fname is not None:
+        fig.savefig(fname, bbox_inches='tight')
+
+
+def plot_scatter_compare_race_incident_vs_population(
+    df,
+    df_population_county_race, 
+    df_type='civilian', 
+    n_county=5, 
+    total_count_cols=True, 
+    figsize=(13, 3),
+    cmap='viridis',
+    annot_fontsize=10, 
+    title=None,
+    fontsize=10,
+    bbox_to_anchor=(1.1, 1),
+    fname=None
+    ):
+
+    """
+    Create a lineplot of no. incidents by county (subplot), year (xticks), and race (yticks)
+    :param pd.DataFrame df: dataset
+    :param str df_type: 'civilian' or 'officer' type
+    :param int n_county: no. counties on the y axis
+    :param bool total_count_cols: if True, show the total counts in a year with title
+    :param bool total_count_xticks: if True, show the total counts across all rows with xticks
+    :param tuple figsize:
+    :param str cmap: matplotlib colormap name
+    :param int annot_fontsize: fontsize of the annotated text in the heatmap
+    :param title:
+    :param fontsize:
+    :param fname:
+    :return: matplotlib figure
+    """
+    years = np.sort(df['year'].unique())
+    assert df_type == 'civilian' or 'officer'
+
+    # select the counties to visualize based on the total number of incidents
+    topN = df['incident_county'].value_counts()[:n_county].index
+    gb = df.groupby(['incident_county', 'year', df_type + '_race'])
+    
+    fig, axes = plt.subplots(1, n_county, figsize=figsize, sharey=True)
+    for i, (ax, county_name) in enumerate(zip(axes, topN)):
+
+        # compute the count for each year, by county and by race and normalize
+        temp = gb['date_incident'].count().unstack().loc[county_name, :].fillna(0).sum()
+        temp_normalized = temp/temp.sum()
+        
+        # if there are no incidents from certain race groups in a county, that rows are missing.
+        # this should be resolved for visualization. Thus, we add nan in this case.
+        # nans are visualized as a gray cell in the heatmap.
+        missing_races = set(race_list) - set(temp_normalized.index)
+        if len(missing_races) > 0:
+            for missing_race in missing_races:
+                temp_normalized[missing_race] = np.nan
+        temp_normalized = temp_normalized[race_list]
+        
+        # population data
+        df_population_normalized = df_population_county_race.loc[county_name]
+        df_population_normalized = df_population_normalized/df_population_normalized.sum()
+        df_population_normalized = df_population_normalized[race_list]
+        
+        df_merged = pd.concat([df_population_normalized, temp_normalized], axis=1)
+        df_merged.columns = ['General Population', 'OIS Incidents']
+        
+        df_merged.plot.scatter('General Population', 'OIS Incidents', marker='o', s=50, color=cols_race, ax=ax)
+        for race, val in zip(race_list, df_merged.values):
+            ax.annotate(race[0], (val[0]+0.03, val[1]), fontsize=10)
+        ax.plot([0, 1], [0, 1], ':', color='k', alpha=0.5)
+        ax.set(ylabel='', xlabel='', 
+               xticks=np.linspace(0, 1, 6), yticks=np.linspace(0, 1, 6), 
+               xlim=[0, 1], ylim=[0, 1])
+        
+        if total_count_cols:
+            ax.set_title('{} ({})'.format(county_name, int(temp.sum())), fontsize=fontsize)
+        else:
+            ax.set_title(county_name, fontsize=fontsize)
+        
+        if i == 0:
+            ax.set(ylabel='OIS Incidents')
+        if i == int(n_county/2):
+            ax.set(xlabel='General Population')
+            
+    fig.suptitle(title, x=0.5, y=0.95, fontsize=fontsize)
+    fig.tight_layout()
+    if fname is not None:
+        fig.savefig(fname, bbox_inches='tight')      
+    
+    
+def plot_line_race_year_county(
+    df,
+    df_type='civilian', 
+    n_county=5, 
+    total_count_cols=True, 
+    total_count_xticks=True,
+    figsize=(11.5, 3),
+    title=None,
+    fontsize=10,
+    bbox_to_anchor=(1.1, 1),
+    fname=None
+    ):
+
+    years = np.sort(df['year'].unique())
+    assert df_type == 'civilian' or 'officer'
+
+    # select the counties to visualize based on the total number of incidents
+    topN = df['incident_county'].value_counts()[:n_county].index
+    gb = df.groupby(['incident_county', 'year', df_type + '_race'])
+    
+    fig, axes = plt.subplots(1, n_county, figsize=figsize, sharey=True)
+    for i, (ax, county_name) in enumerate(zip(axes, topN)):
+
+        # compute the count for each year, by county and by race
+        temp = gb['date_incident'].count().unstack().loc[county_name, :].fillna(0)
+    
+        missing_races = set(race_list) - set(temp.columns)
+        if len(missing_races) > 0:
+            for missing_race in missing_races:
+                temp[missing_race] = np.nan
+        temp = temp[race_list]
+    
+        temp.plot(marker='.', color=cols_race, ax=ax, legend=False)
+        ax.set(ylabel='', xlabel='', xticks=years)
+    
+        if total_count_xticks:
+            ax.set_xticklabels([str(s) + '\n({})'.format(int(n))
+                                for s, n in zip(years, temp.sum(axis=1))], rotation=0)
+        else:
+            ax.set_xticklabels(years, rotation=0)
+
+        if total_count_cols:
+            ax.set_title('{} ({})'.format(county_name, int(temp.sum().sum())), fontsize=fontsize)
+        else:
+            ax.set_title(county_name, fontsize=fontsize)
+            
+    fig.legend(race_list, ncol=1, bbox_to_anchor=bbox_to_anchor, fontsize=10)            
+    fig.suptitle(title, x=0.5, y=0.95, fontsize=fontsize)
+    fig.tight_layout()
+    if fname is not None:
+        fig.savefig(fname, bbox_inches='tight')
