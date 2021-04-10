@@ -7,7 +7,6 @@ colors_year = plt.get_cmap('magma')(np.linspace(0.5, 1, 5)[::-1][1:])   # defaul
 
 # commonly used variables
 race_list = ['WHITE', 'BLACK', 'HISPANIC', 'OTHER']
-years = range(2016, 2020)
 age_names = np.array(['1-4', '5-14', '15-24', '25-34', '35-44', '45-54', '55-64', '65-74', '75+'])
 incident_causes_list = ['Emergency/Request for Assistance', 'Other', 'Traffic Stop',
                         'Execution of a Warrant', 'Hostage/Barricade/Other Emergency']
@@ -33,7 +32,7 @@ def plot_stackedbar_year_county(df, title, total_count=False, n_county=10,
     :param tuple bbox_to_anchor: location of figure legend
     :return: matplotlib figure
     """
-
+    years = np.sort(df['year'].unique())
     if colors is None:
         colors = colors_year
 
@@ -148,7 +147,7 @@ def plot_heatmap_county_race_year(df, df_type='civilian', n_county=10, total_cou
     :param fname:
     :return: matplotlib figure
     """
-
+    years = np.sort(df['year'].unique())
     assert df_type == 'civilian' or 'officer'
 
     # select the counties to visualize based on the total number of incidents
@@ -217,7 +216,7 @@ def plot_heatmap_age_race_year(df, total_count_yticks=True, total_count_cols=Tru
     :param str fname:
     :return: matplotlib figure
     """
-
+    years = np.sort(df['year'].unique())
     gb = df.groupby(['year', 'civilian_race', 'civilian_age_binned'])
     vmax = gb['date_incident'].count().max()
     
