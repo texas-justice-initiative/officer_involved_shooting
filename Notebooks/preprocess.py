@@ -1,6 +1,12 @@
 import pandas as pd
 import numpy as np
 
+incident_causes_list = ['Traffic Stop', 'Emergency/Request for Assistance', 
+                        'Execution of a Warrant', 'Hostage/Barricade/Other Emergency', 'Other']
+age_names = ['1-4' '5-14' '15-24' '25-34' '35-44' '45-54' '55-64' '65-74' '75+']
+# report delay
+report_delay_days_bins = [0, 7, 14, 30, 60, 90, 180, 360, 720]
+report_delay_days_binnames = ['Same Day'] + ['{} to {} Days'.format(report_delay_days_bins[i]+1, report_delay_days_bins[i+1]) for i in range(len(report_delay_days_bins)-1)] + ['More than 720 Days']
 
 def convert_date_cols(df, col_date='date'):
 
@@ -161,3 +167,106 @@ def count_agencies_by_year_type(df, agency_names, N=5):
         df_agency_count_plot[key] = temp
 
     return df_agency_count, df_agency_count_plot
+
+def clean_incident_causes(s):
+    if 'EMERGENCY' in s:
+        return 'Emergency/Request for Assistance'
+    elif 'HOSTAGE' in s:
+        return 'Hostage/Barricade/Other Emergency'
+    elif 'OTHER' in s:
+        return 'Other'
+    elif 'TRAFFIC STOP' in s:
+        return 'Traffic Stop'
+    elif 'WARRANT' in s:
+        return 'Execution of a Warrant'
+    else:
+        raise ValueError('Double check the string from incident causes.')
+
+class Preprocess:
+
+    def __init__(
+        self, 
+        df,
+        correct_county_names,
+        years = [2016, 2017, 2018, 2019, 2020]
+        ):
+
+        self.df = df
+        self.correct_county_names = correct_county_names
+        self.years = years
+
+    def add_date_cols(self):
+        self.df = convert_date_cols(self.df, 'date')
+        self.df.loc[:, 'year'] = self.df['date_incident'].dt.year.values
+        self.df.loc[:, 'month'] = self.df['date_incident'].dt.month.values
+
+        return self.df
+
+    def select_rows_by_year(self):
+        self.df = self.df.loc[self.df['year'].isin(self.years)]
+
+    def check_county_names(self):
+        non_existent_counties = set(self.df['incident_county']) - set(self.correct_county_names)
+        if len(non_existent_counties) > 0:
+            raise ValueError("Incorrect county names exist: {}".format(non_existent_counties))
+
+    def remove_duplicates(self):
+        df_civilian_unique, _ = get_duplicates_from_cols(
+            self.df,
+            ['civilian_name_full', 'date_incident'], 
+            what_to_keep='first'
+            )
+        self.df = df_civilian_unique
+
+    def add_death_indicator_col(self, death_injury_col_name):
+        self.df['died'] = self.df[death_injury_col_name]=='DEATH'
+
+    def clean_incident_cause_str(self):
+        self.df.loc[self.df['incident_result_of']=='EMERGENCY', 'incident_result_of'] = 'EMERGENCY CALL OR REQUEST FOR ASSISTANCE'
+        self.df.loc[self.df['incident_result_of']=='EMERGENCY CALL OR REQUEST FOR ASSISTANCE, TRAFFIC STOP', 'incident_result_of'] = \
+            'EMERGENCY CALL OR REQUEST FOR ASSISTANCE; TRAFFIC STOP'
+        self.df['incident_result_of'] = self.df['incident_result_of'].str.strip()
+
+        df_causes_list = self.df['incident_result_of'].str.split(';')
+        df_causes_list_clean = df_causes_list.apply(lambda x: [clean_incident_causes(s) for s in x]).apply(pd.Series)
+        df_causes_list_clean_separated = df_causes_list_clean.stack().str.get_dummies().sum(level=0)[incident_causes_list]
+
+        self.df = pd.concat([self.df, df_causes_list_clean_separated], axis=1)
+
+    def add_age_groups(self):
+        bins = [5, 15, 25, 35, 45, 55, 65, 75, 100]
+        self.df['civilian_age_binned'] = np.digitize(self.df['civilian_age'], bins)
+
+    def compute_report_delay(self):
+        self.df.loc[:, 'delay_days'] = (self.df['date_ag_received'] - self.df['date_incident']).dt.days
+        self.df.loc[self.df['delay_days']<0, 'delay_days'] = np.nan
+
+        # bin the report deplay
+        bins = [0, 7, 14, 30, 60, 90, 180, 360, 720]
+        delay_bins = np.digitize(self.df['delay_days'].values, bins, right=True)
+        nan_inds = np.argwhere(pd.isnull(self.df['delay_days']).values).ravel()
+        delay_bins[nan_inds] = -1
+
+        self.df.loc[:, 'delay_bin_label'] = delay_bins
+
+    def get_civilian_data(self):
+        self.check_county_names()
+        self.add_date_cols()
+        self.select_rows_by_year()
+        self.remove_duplicates()
+        self.add_death_indicator_col(death_injury_col_name='civilian_died')
+        self.clean_incident_cause_str()
+        self.add_age_groups()
+        self.compute_report_delay()
+
+        return self.df
+
+    def get_officer_data(self):
+        self.check_county_names()
+        self.add_date_cols()
+        self.select_rows_by_year()
+        self.add_death_indicator_col(death_injury_col_name='officer_harm')
+        self.compute_report_delay()
+
+        return self.df
+        
