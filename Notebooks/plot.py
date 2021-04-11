@@ -2,9 +2,14 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from matplotlib.ticker import MaxNLocator
+
 plt.style.use('ggplot')
 cols_race = ['#CE2827', '#3167AE', '#4C5151', '#B8BAB9']
-
+incident_causes_list_sorted = ['Emergency/Request for Assistance', 'Other', 'Traffic Stop',
+                               'Execution of a Warrant', 'Hostage/Barricade/Other Emergency']
+age_names = ['1-4', '5-14', '15-24', '25-34', '35-44', '45-54', '55-64', '65-74', '75+']
+colors_incident_cause = plt.get_cmap('Set2')(np.linspace(0, 1, 8))
 # commonly used variables
 race_list = ['WHITE', 'BLACK', 'HISPANIC', 'OTHER']
 age_names = np.array(['1-4', '5-14', '15-24', '25-34', '35-44', '45-54', '55-64', '65-74', '75+'])
@@ -572,10 +577,10 @@ def plot_line_race_year_county(
     n_county=5, 
     total_count_cols=True, 
     total_count_xticks=True,
-    figsize=(11.5, 3),
+    figsize=(14, 4),
     title=None,
     fontsize=10,
-    bbox_to_anchor=(1.1, 1),
+    bbox_to_anchor=(1.09, 0.35),
     fname=None
     ):
 
@@ -591,6 +596,14 @@ def plot_line_race_year_county(
 
         # compute the count for each year, by county and by race
         temp = gb['date_incident'].count().unstack().loc[county_name, :].fillna(0)
+        
+        missing_years = set(years) - set(temp.index)
+        if len(missing_years) > 0:
+            df_missing_year = pd.DataFrame(
+                np.zeros((len(missing_years), temp.shape[1])),
+                columns=temp.columns,
+                index=list(missing_years))
+            temp = temp.append(df_missing_year).loc[years]
     
         missing_races = set(race_list) - set(temp.columns)
         if len(missing_races) > 0:
@@ -598,8 +611,63 @@ def plot_line_race_year_county(
                 temp[missing_race] = np.nan
         temp = temp[race_list]
     
-        temp.plot(marker='.', color=cols_race, ax=ax, legend=False)
+        temp.plot(marker='.', linestyle='--', markersize=10, color=cols_race, legend=False, ax=ax)
         ax.set(ylabel='', xlabel='', xticks=years)
+        ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+        
+        if total_count_xticks:
+            ax.set_xticklabels([str(s) + '\n({})'.format(int(n))
+                                for s, n in zip(years, temp.sum(axis=1))], rotation=0)
+        else:
+            ax.set_xticklabels(years, rotation=0)
+
+        if total_count_cols:
+            ax.set_title('{} ({})'.format(county_name, int(temp.sum().sum())), fontsize=fontsize)
+        else:
+            ax.set_title(county_name, fontsize=fontsize)
+            
+    fig.legend(race_list, ncol=1, bbox_to_anchor=bbox_to_anchor, fontsize=10)            
+    fig.suptitle(title, x=0.5, y=0.95, fontsize=fontsize)
+    fig.tight_layout()
+    if fname is not None:
+        fig.savefig(fname, bbox_inches='tight')
+
+def plot_line_cause_year_county(
+    df,
+    n_county=5, 
+    total_count_cols=True, 
+    total_count_xticks=True,
+    figsize=(14, 4),
+    title=None,
+    fontsize=10,
+    bbox_to_anchor=(1.2, 0.4),
+    fname=None
+    ):
+
+    years = np.sort(df['year'].unique())
+    assert 'civilian_race' in df.columns
+    
+    # select the counties to visualize based on the total number of incidents
+    topN = df['incident_county'].value_counts()[:n_county].index
+    gb = df.groupby(['incident_county', 'year'])
+    
+    fig, axes = plt.subplots(1, n_county, figsize=figsize, sharey=True)
+    for i, (ax, county_name) in enumerate(zip(axes, topN)):
+
+        # compute the count for each year, by county and by race
+        temp = gb[incident_causes_list_sorted].sum().loc[county_name].fillna(0)
+        
+        missing_years = set(years) - set(temp.index)
+        if len(missing_years) > 0:
+            df_missing_year = pd.DataFrame(
+                np.zeros((len(missing_years), temp.shape[1])),
+                columns=temp.columns,
+                index=list(missing_years))
+            temp = temp.append(df_missing_year).loc[years]
+    
+        temp.plot(marker='.', linestyle='--', markersize=10, legend=False, color=colors_incident_cause, ax=ax)
+        ax.set(ylabel='', xlabel='', xticks=years)
+        ax.yaxis.set_major_locator(MaxNLocator(integer=True))
     
         if total_count_xticks:
             ax.set_xticklabels([str(s) + '\n({})'.format(int(n))
@@ -611,6 +679,73 @@ def plot_line_race_year_county(
             ax.set_title('{} ({})'.format(county_name, int(temp.sum().sum())), fontsize=fontsize)
         else:
             ax.set_title(county_name, fontsize=fontsize)
+            
+    fig.legend(incident_causes_list_sorted, ncol=1, bbox_to_anchor=bbox_to_anchor, fontsize=10)            
+    fig.suptitle(title, x=0.5, y=0.95, fontsize=fontsize)
+    fig.tight_layout()
+    if fname is not None:
+        fig.savefig(fname, bbox_inches='tight')
+
+
+def plot_line_age_race_year(
+    df,
+    n_county=None,
+    age_bins_focus=np.arange(2, 7), # age 15-24 to 55-64 (97% incident)
+    total_count_cols=True, 
+    total_count_xticks=True,
+    figsize=(14, 4),
+    title=None,
+    fontsize=10,
+    bbox_to_anchor=(1.09, 0.32),
+    fname=None
+    ):
+
+    years = np.sort(df['year'].unique())
+    assert 'civilian_race' in df.columns
+    
+    # slice the data based on the condition
+    # to select all county, set n_county to None
+    if not n_county:
+        n_county = df['incident_county'].nunique()
+        
+    topN = df['incident_county'].value_counts()[:n_county].index
+    df_ = df.loc[(df['incident_county'].isin(topN)) &  (df['civilian_age_binned'].isin(age_bins_focus)), :]
+    gb = df_.groupby(['civilian_age_binned', 'year', 'civilian_race'])
+        
+    fig, axes = plt.subplots(1, len(age_bins_focus), figsize=figsize, sharey=True)
+    for i, (ax, age_bin) in enumerate(zip(axes, age_bins_focus)):
+
+        # compute the count for each year, by county and by race
+        temp = gb['date_incident'].count().unstack().loc[age_bin].fillna(0)
+        
+        missing_years = set(years) - set(temp.index)
+        if len(missing_years) > 0:
+            df_missing_year = pd.DataFrame(
+                np.zeros((len(missing_years), temp.shape[1])),
+                columns=temp.columns,
+                index=list(missing_years))
+            temp = temp.append(df_missing_year).loc[years]
+
+        missing_races = set(race_list) - set(temp.columns)
+        if len(missing_races) > 0:
+            for missing_race in missing_races:
+                temp[missing_race] = np.nan
+        temp = temp[race_list]
+    
+        temp.plot(marker='.', linestyle='--', markersize=10, legend=False, color=cols_race, ax=ax)
+        ax.set(ylabel='', xlabel='', xticks=years)
+        ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+        
+        if total_count_xticks:
+            ax.set_xticklabels([str(s) + '\n({})'.format(int(n))
+                                for s, n in zip(years, temp.sum(axis=1))], rotation=0)
+        else:
+            ax.set_xticklabels(years, rotation=0)
+
+        if total_count_cols:
+            ax.set_title('{} ({})'.format(age_names[age_bin], int(temp.sum().sum())), fontsize=fontsize)
+        else:
+            ax.set_title(age_names[age_bin], fontsize=fontsize)
             
     fig.legend(race_list, ncol=1, bbox_to_anchor=bbox_to_anchor, fontsize=10)            
     fig.suptitle(title, x=0.5, y=0.95, fontsize=fontsize)
